@@ -1,0 +1,15 @@
+{
+  "name": "stepbystory_backend",
+  "version": "1.0.0",
+  "description": "Node.js API for Step By Story",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.1.4",
+    "axios": "^1.6.7"
+  }
+}
