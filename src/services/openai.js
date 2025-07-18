@@ -1,58 +1,69 @@
+// src/services/openai.js
 const axios = require('axios');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if (!OPENAI_API_KEY) {
-  throw new Error('Missing OPENAI_API_KEY environment variable');
+  throw new Error('Missing OPENAI_API_KEY');
 }
 
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+const CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 
-async function generateStory(steps, tone) {
+async function generateChapters(steps, tone) {
+  // Build a prompt that returns strict JSON
   const prompt = `
-Create a ${tone} adventure story for a child. Use the following routine steps as chapters:
+You are a storytelling assistant. Given these routine steps:
 ${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}
-Story:
+Output a JSON array called "chapters". Each chapter must have:
+- "title": a short, catchy title
+- "text": one or two sentences about that step
+- "imagePrompt": a 5–10 word description for an illustration of this step
+
+Example response:
+{
+  "chapters": [
+    {
+      "title": "Sparkling Smile",
+      "text": "Tommy brushes each tooth until they shine like stars.",
+      "imagePrompt": "child brushing teeth cartoon"
+    },
+    …
+  ]
+}
 `;
 
-  try {
-    const response = await axios.post(
-      OPENAI_URL,
-      {
-        model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: 'You are a creative assistant that writes fun, child-friendly stories.' },
-          { role: 'user', content: prompt },
-        ],
-        max_tokens: 500
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${OPENAI_API_KEY}`
-        }
+  const res = await axios.post(
+    CHAT_URL,
+    {
+      model: 'gpt-3.5-turbo',
+      messages: [
+        { role: 'system', content: 'You output only valid JSON.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`
       }
-    );
-
-    const story = response.data.choices?.[0]?.message?.content;
-    if (!story) throw new Error('No content returned from OpenAI');
-    return story.trim();
-
-  } catch (err) {
-    // Log Axios error details
-    console.error('🔥 Axios error message:', err.message);
-    if (err.response) {
-      console.error('🔥 HTTP status:', err.response.status);
-      console.error('🔥 Response body:', JSON.stringify(err.response.data, null, 2));
-    } else {
-      console.error('🔥 No response received (network error?)');
     }
+  );
 
-    // Extract a clear error message
-    const msg = err.response?.data?.error?.message
-              || err.message
-              || 'Unknown OpenAI error';
-    throw new Error(msg);
+  const text = res.data.choices[0].message.content.trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    console.error('Failed to parse JSON from OpenAI:', text);
+    throw new Error('Invalid JSON response from story generator');
   }
+
+  if (!Array.isArray(parsed.chapters)) {
+    throw new Error('Missing "chapters" array in OpenAI response');
+  }
+
+  return parsed.chapters;
 }
 
-module.exports = { generateStory };
+module.exports = { generateChapters };
